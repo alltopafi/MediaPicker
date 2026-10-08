@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: mediachoice
+      POSTGRES_PASSWORD: mediachoice # dev-only credentials
+      POSTGRES_DB: mediachoice
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '5432:5432' # exposed for local dev (`npm run dev:server`, `npm test`)
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mediachoice -d mediachoice']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build:
+      context: .
+      target: runtime
+    environment:
+      DATABASE_URL: postgres://mediachoice:mediachoice@db:5432/mediachoice
+      PORT: '3000'
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Integration tests against the compose db (uses a separate, recreated database).
+  #   docker compose run --rm test
+  test:
+    profiles: ['test']
+    build:
+      context: .
+      target: test
+    environment:
+      TEST_DATABASE_URL: postgres://mediachoice:mediachoice@db:5432/mediachoice_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
